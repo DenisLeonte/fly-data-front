@@ -53,9 +53,7 @@ const CircularTimer = ({ countdown, total, isLoading }: { countdown: number, tot
   );
 };
 
-// New Heatmap Component
 const MobilityHeatmap = ({ data }: { data: Aggregation[] }) => {
-  // Extract all unique regions from sources and targets
   const regions = Array.from(new Set([
     ...data.map(d => d.source_region),
     ...data.map(d => d.target_region || 'Unknown')
@@ -63,7 +61,6 @@ const MobilityHeatmap = ({ data }: { data: Aggregation[] }) => {
 
   if (regions.length === 0) return <div style={{color: '#9ca3af', textAlign: 'center', padding: '2rem'}}>No aggregation data available</div>;
 
-  // Create a lookup map for counts: "Source|Target" -> count
   const countMap = new Map<string, number>();
   let maxCount = 0;
   data.forEach(d => {
@@ -75,7 +72,6 @@ const MobilityHeatmap = ({ data }: { data: Aggregation[] }) => {
   return (
     <div style={{ overflowX: 'auto', paddingBottom: '1rem', width: '100%' }}>
       <div style={{ display: 'grid', gridTemplateColumns: `auto repeat(${regions.length}, 1fr)`, gap: '4px', width: '100%', minWidth: '100%' }}>
-        {/* Header Row */}
         <div style={{ fontWeight: 'bold', padding: '8px', fontSize: '0.75rem', color: '#6b7280', display: 'flex', alignItems: 'end', justifyContent: 'center' }}>Origin \ Dest</div>
         {regions.map(r => (
           <div key={`h-${r}`} style={{ fontWeight: 'bold', padding: '8px', fontSize: '0.75rem', textAlign: 'center', color: '#374151', justifySelf: 'center' }}>
@@ -83,15 +79,12 @@ const MobilityHeatmap = ({ data }: { data: Aggregation[] }) => {
           </div>
         ))}
 
-        {/* Data Rows */}
         {regions.map(source => (
           <React.Fragment key={`row-${source}`}>
-            {/* Row Label */}
             <div style={{ fontWeight: 'bold', padding: '8px', fontSize: '0.75rem', color: '#374151', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
               {source}
             </div>
             
-            {/* Cells */}
             {regions.map(target => {
               const count = countMap.get(`${source}|${target}`) || 0;
               const intensity = maxCount > 0 ? count / maxCount : 0;
@@ -101,7 +94,7 @@ const MobilityHeatmap = ({ data }: { data: Aggregation[] }) => {
                   key={`${source}-${target}`}
                   title={`${source} → ${target}: ${count} flights`}
                   style={{ 
-                    background: `rgba(37, 99, 235, ${Math.max(intensity, 0.05)})`, // Base blue with dynamic opacity
+                    background: `rgba(37, 99, 235, ${Math.max(intensity, 0.05)})`,
                     color: intensity > 0.6 ? 'white' : '#1e3a8a',
                     padding: '12px',
                     display: 'flex',
@@ -110,7 +103,7 @@ const MobilityHeatmap = ({ data }: { data: Aggregation[] }) => {
                     fontSize: '0.875rem',
                     fontWeight: 'bold',
                     borderRadius: '4px',
-                    opacity: count > 0 ? 1 : 0.1, // Fade out empty cells
+                    opacity: count > 0 ? 1 : 0.1,
                     minHeight: '40px'
                   }}
                 >
@@ -128,15 +121,12 @@ const MobilityHeatmap = ({ data }: { data: Aggregation[] }) => {
   );
 };
 
-// New Migration Radar Component
 const MigrationRadar = ({ current, historical }: { current: Aggregation[], historical: Aggregation[] }) => {
-  // 1. Calculate totals
   const totalCurrent = current.reduce((sum, d) => sum + d.flight_count, 0);
   const totalHistorical = historical.reduce((sum, d) => sum + d.flight_count, 0);
 
   if (totalCurrent === 0 || totalHistorical === 0) return null;
 
-  // 2. Build Historical Share Map
   const historicalShare = new Map<string, number>();
   historical.forEach(d => {
     const key = `${d.source_region}|${d.target_region || 'Unknown'}`;
@@ -144,17 +134,15 @@ const MigrationRadar = ({ current, historical }: { current: Aggregation[], histo
     historicalShare.set(key, existing + d.flight_count);
   });
   
-  // Normalize historical counts to shares (0 to 1)
   for (const [key, count] of historicalShare) {
     historicalShare.set(key, count / totalHistorical);
   }
 
-  // 3. Analyze Current Flows
   const anomalies = current.map(d => {
     const key = `${d.source_region}|${d.target_region || 'Unknown'}`;
     const currentShare = d.flight_count / totalCurrent;
     const baselineShare = historicalShare.get(key) || 0;
-    const deviation = currentShare - baselineShare; // Absolute difference in market share
+    const deviation = currentShare - baselineShare;
 
     return {
       source: d.source_region,
@@ -165,7 +153,7 @@ const MigrationRadar = ({ current, historical }: { current: Aggregation[], histo
     };
   })
   .sort((a, b) => b.deviation - a.deviation)
-  .slice(0, 5); // Top 5
+  .slice(0, 5);
 
   return (
     <section style={{...cardStyle, gridColumn: '1 / -1'}}>
@@ -208,11 +196,8 @@ const MigrationRadar = ({ current, historical }: { current: Aggregation[], histo
   );
 };
 
-// Regional Activity Deviation Chart (Grouped Bar Chart)
 const RegionalActivityChart = ({ current, historical }: { current: Aggregation[], historical: Aggregation[] }) => {
-  // Process Data
   const processData = () => {
-    // Helper to sum up counts per source region
     const sumByRegion = (data: Aggregation[]) => {
         const map = new Map<string, number>();
         let total = 0;
@@ -227,7 +212,6 @@ const RegionalActivityChart = ({ current, historical }: { current: Aggregation[]
     const { map: currentMap, total: currentTotal } = sumByRegion(current);
     const { map: historicalMap, total: historicalTotal } = sumByRegion(historical);
 
-    // Combine all unique regions
     const allRegions = new Set([...currentMap.keys(), ...historicalMap.keys()]);
     
     const combined = Array.from(allRegions).map(region => {
@@ -236,18 +220,15 @@ const RegionalActivityChart = ({ current, historical }: { current: Aggregation[]
         
         return {
             region,
-            // Calculate Share (%)
             currentShare: currentTotal > 0 ? (currentCount / currentTotal) * 100 : 0,
             historicalShare: historicalTotal > 0 ? (historicalCount / historicalTotal) * 100 : 0,
-            // Keep raw counts for tooltip
             currentCount,
             historicalCount
         };
     });
 
-    // Sort by current share descending and take top 10 for readability
     return combined
-        .filter(d => d.currentCount > 0 || d.historicalCount > 0) // Filter out noise
+        .filter(d => d.currentCount > 0 || d.historicalCount > 0)
         .sort((a, b) => b.currentShare - a.currentShare)
         .slice(0, 10);
   };
@@ -306,14 +287,12 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [realtimeFlights, setRealtimeFlights] = useState<Flight[]>([]);
   const [streamingData, setStreamingData] = useState<Aggregation[]>([]);
-  const [batchData, setBatchData] = useState<Aggregation[]>([]); // New State
+  const [batchData, setBatchData] = useState<Aggregation[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
   const [isSyncing, setIsSyncing] = useState(false);
-
   const [isToggling, setIsToggling] = useState(false);
 
-  // Initial Data Load (Batch)
   useEffect(() => {
     api.getBatchRegions(1000).then(res => {
         setBatchData(res.data.data);
@@ -341,11 +320,9 @@ const App: React.FC = () => {
       setIsSyncing(false);
     }
   }, []);
-// ... (rest of App)
 
-  // Handle the 90s polling logic
   useEffect(() => {
-    syncData(); // Initial fetch
+    syncData();
   }, [syncData]);
 
   useEffect(() => {
@@ -375,7 +352,6 @@ const App: React.FC = () => {
       } else {
         await api.startStreaming();
       }
-      // Small delay to ensure backend state propagates if needed, though usually instant for the flag
       await new Promise(r => setTimeout(r, 500));
       await syncData();
     } catch (e) {
@@ -389,11 +365,10 @@ const App: React.FC = () => {
     <div style={containerStyle}>
       <header style={headerStyle}>
         <h1 style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0, color: '#111827' }}>
-          <Plane size={32} color="#2563eb" /> Air Traffic Mobility
+          <Plane size={32} color="#2563eb" /> Migration Pattern Detection Software
         </h1>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            {/* Visual Feedback Widget */}
             <div style={timerWidgetStyle}>
                 <CircularTimer countdown={countdown} total={REFRESH_INTERVAL} isLoading={isSyncing} />
                 <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.75rem', lineHeight: '1.2' }}>
@@ -414,15 +389,11 @@ const App: React.FC = () => {
                 {isToggling ? <RefreshCw size={16} className="animate-spin" /> : (status?.streaming_active ? <Square size={16} /> : <Play size={16} />)}
                 {isToggling ? ' Processing...' : (status?.streaming_active ? ' Stop' : ' Start')}
             </button>
-            <button onClick={api.exportCSV} style={secondaryButtonStyle}>
-                <Download size={16} /> Export CSV
-            </button>
             </div>
         </div>
       </header>
 
       <main style={gridStyle}>
-        {/* Real-time Section - Powered by /api/realtime */}
         <section style={cardStyle}>
           <h2 style={cardTitleStyle}><Activity size={20} /> Live Flights</h2>
           <div style={tableWrapper}>
@@ -451,19 +422,16 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* Streaming Aggregates Section - Powered by /api/streaming */}
         <section style={cardStyle}>
           <h2 style={cardTitleStyle}><Database size={20} /> Regional Mobility Matrix</h2>
           <MobilityHeatmap data={streamingData} />
         </section>
       </main>
 
-      {/* Migration Radar - Powered by Batch vs Streaming comparison */}
       <div style={{ marginTop: '1.5rem' }}>
         <MigrationRadar current={streamingData} historical={batchData} />
       </div>
 
-      {/* Regional Activity Deviation - Powered by Batch vs Streaming comparison */}
       <div style={{ marginTop: '1.5rem' }}>
         <RegionalActivityChart current={streamingData} historical={batchData} />
       </div>
@@ -478,7 +446,6 @@ const App: React.FC = () => {
   );
 };
 
-// --- Styles ---
 const containerStyle: React.CSSProperties = { padding: '2rem', margin: '0 auto', fontFamily: 'system-ui, sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh', boxSizing: 'border-box' };
 const headerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' };
 const statusGroupStyle: React.CSSProperties = { display: 'flex', gap: '1rem', alignItems: 'center' };

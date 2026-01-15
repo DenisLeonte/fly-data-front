@@ -11,8 +11,8 @@ export interface Aggregation {
   source_region: string;
   target_region: string | null;
   flight_count: number;
-  time_window?: string; // Present in streaming data
-  year?: string;        // Present in batch data
+  time_window?: string;
+  year?: string;
 }
 
 export interface SystemStatus {
@@ -20,6 +20,7 @@ export interface SystemStatus {
   backend?: string;
   streaming_active: boolean;
   timestamp: string;
+  refresh_interval?: number;
   files_available?: {
     batch_regions: boolean;
     batch_countries: boolean;
@@ -36,11 +37,4 @@ export interface Insights {
   historical_records?: number;
   region_pairs_analyzed?: number;
   total_flights_processed?: number;
-}
-
-export interface SystemStatus {
-  status: string;
-  streaming_active: boolean;
-  timestamp: string;
-  refresh_interval: number; // Add this to track the 90s delay
 }
