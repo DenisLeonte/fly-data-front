@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from './api';
 import type { Flight, Aggregation, SystemStatus, Insights } from './types/types';
 import { Plane, Activity, Database, Download, Play, Square, RefreshCw } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const REFRESH_INTERVAL = 90;
 
@@ -139,10 +140,6 @@ const MigrationRadar = ({ current, historical }: { current: Aggregation[], histo
   const historicalShare = new Map<string, number>();
   historical.forEach(d => {
     const key = `${d.source_region}|${d.target_region || 'Unknown'}`;
-    // Average share across all years/records for this route
-    // Note: If historical has multiple entries for same route (different years), we should sum them first?
-    // For simplicity, we assume unique entries or we sum them up. 
-    // Let's handle duplicate keys by summing.
     const existing = historicalShare.get(key) || 0;
     historicalShare.set(key, existing + d.flight_count);
   });
@@ -167,7 +164,6 @@ const MigrationRadar = ({ current, historical }: { current: Aggregation[], histo
       deviation
     };
   })
-  .filter(d => d.deviation > 0.05) // Only show flows with >5% surge in share
   .sort((a, b) => b.deviation - a.deviation)
   .slice(0, 5); // Top 5
 
@@ -208,6 +204,100 @@ const MigrationRadar = ({ current, historical }: { current: Aggregation[], histo
                 No significant migration anomalies detected. Traffic flows are within historical norms.
             </div>
         )}
+    </section>
+  );
+};
+
+// Regional Activity Deviation Chart (Grouped Bar Chart)
+const RegionalActivityChart = ({ current, historical }: { current: Aggregation[], historical: Aggregation[] }) => {
+  // Process Data
+  const processData = () => {
+    // Helper to sum up counts per source region
+    const sumByRegion = (data: Aggregation[]) => {
+        const map = new Map<string, number>();
+        let total = 0;
+        data.forEach(d => {
+            const count = map.get(d.source_region) || 0;
+            map.set(d.source_region, count + d.flight_count);
+            total += d.flight_count;
+        });
+        return { map, total };
+    };
+
+    const { map: currentMap, total: currentTotal } = sumByRegion(current);
+    const { map: historicalMap, total: historicalTotal } = sumByRegion(historical);
+
+    // Combine all unique regions
+    const allRegions = new Set([...currentMap.keys(), ...historicalMap.keys()]);
+    
+    const combined = Array.from(allRegions).map(region => {
+        const currentCount = currentMap.get(region) || 0;
+        const historicalCount = historicalMap.get(region) || 0;
+        
+        return {
+            region,
+            // Calculate Share (%)
+            currentShare: currentTotal > 0 ? (currentCount / currentTotal) * 100 : 0,
+            historicalShare: historicalTotal > 0 ? (historicalCount / historicalTotal) * 100 : 0,
+            // Keep raw counts for tooltip
+            currentCount,
+            historicalCount
+        };
+    });
+
+    // Sort by current share descending and take top 10 for readability
+    return combined
+        .filter(d => d.currentCount > 0 || d.historicalCount > 0) // Filter out noise
+        .sort((a, b) => b.currentShare - a.currentShare)
+        .slice(0, 10);
+  };
+
+  const data = processData();
+
+  if (data.length === 0) return null;
+
+  return (
+    <section style={{...cardStyle, gridColumn: '1 / -1', minHeight: '450px'}}>
+      <h2 style={cardTitleStyle}>
+        <Activity size={20} /> Regional Activity Deviation 
+        <span style={{fontSize:'0.8rem', color:'#6b7280', marginLeft:'auto'}}>
+          Real-time Share vs Historical Avg (%)
+        </span>
+      </h2>
+      <div style={{ width: '100%', height: '350px' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={data}
+            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+            barGap={0}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+            <XAxis 
+                dataKey="region" 
+                tick={{fill: '#4b5563', fontSize: 12}} 
+                axisLine={false} 
+                tickLine={false} 
+            />
+            <YAxis 
+                tick={{fill: '#4b5563', fontSize: 12}} 
+                axisLine={false} 
+                tickLine={false} 
+                unit="%" 
+            />
+            <Tooltip 
+                cursor={{fill: '#f3f4f6'}}
+                contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}}
+                formatter={(value: number, name: string, props: any) => {
+                    const count = name === 'Current Share' ? props.payload.currentCount : props.payload.historicalCount;
+                    return [`${value.toFixed(1)}% (${count} flights)`, name];
+                }}
+            />
+            <Legend wrapperStyle={{paddingTop: '20px'}} />
+            <Bar dataKey="currentShare" name="Current Share" fill="#2563eb" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="historicalShare" name="Historical Avg" fill="#9ca3af" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </section>
   );
 };
@@ -371,6 +461,11 @@ const App: React.FC = () => {
       {/* Migration Radar - Powered by Batch vs Streaming comparison */}
       <div style={{ marginTop: '1.5rem' }}>
         <MigrationRadar current={streamingData} historical={batchData} />
+      </div>
+
+      {/* Regional Activity Deviation - Powered by Batch vs Streaming comparison */}
+      <div style={{ marginTop: '1.5rem' }}>
+        <RegionalActivityChart current={streamingData} historical={batchData} />
       </div>
 
       {insights && (
